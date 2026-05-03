@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-bento-bg: #020617;
+  --color-glass-bg: rgba(30, 41, 59, 0.7);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+}
+
+@layer base {
+  body {
+    @apply bg-bento-bg text-slate-50 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .glass {
+    background: var(--color-glass-bg);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 0.75rem;
+    backdrop-filter: blur(12px);
+  }
+  
+  .wind-card {
+    background: var(--color-glass-bg);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 0.75rem;
+    backdrop-filter: blur(12px);
+    @apply p-4 flex flex-col gap-3 transition-all duration-300;
+  }
+
+  .pos-label {
+    @apply text-[10px] uppercase tracking-widest opacity-60 font-black;
+  }
+
+  .score-display {
+    @apply text-3xl font-extrabold tracking-tighter;
+  }
+}

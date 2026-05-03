@@ -1,0 +1,6 @@
+{
+  "name": "Gamble 2 MJ tracker",
+  "description": "A high-precision game tracker for Mahjong with chip-based scoring, Google Sheets integration, and audit trails.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
