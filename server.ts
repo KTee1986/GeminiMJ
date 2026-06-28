@@ -35,6 +35,35 @@ function getPrivateKey() {
   return key;
 }
 
+// Cache implementation
+const cache: Record<string, { data: any; expiry: number }> = {};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedData(key: string) {
+  const item = cache[key];
+  if (item && item.expiry > Date.now()) {
+    return item.data;
+  }
+  return null;
+}
+
+function setCachedData(key: string, data: any, ttl = CACHE_TTL) {
+  cache[key] = {
+    data,
+    expiry: Date.now() + ttl,
+  };
+}
+
+function clearCache(pattern?: string) {
+  if (!pattern) {
+    Object.keys(cache).forEach(key => delete cache[key]);
+    return;
+  }
+  Object.keys(cache).forEach(key => {
+    if (key.includes(pattern)) delete cache[key];
+  });
+}
+
 const auth = new google.auth.JWT({
   email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
   key: getPrivateKey(),
@@ -120,26 +149,39 @@ async function startServer() {
 
       const sheets = google.sheets({ version: 'v4', auth });
       
-      const spreadsheet = await sheets.spreadsheets.get({
-        spreadsheetId: SPREADSHEET_ID,
-      });
-      const sheetNames = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
+      const cacheKeyMetadata = `metadata_${SPREADSHEET_ID}`;
+      let spreadsheet = getCachedData(cacheKeyMetadata);
+      if (!spreadsheet) {
+        const response = await sheets.spreadsheets.get({
+          spreadsheetId: SPREADSHEET_ID,
+        });
+        spreadsheet = response.data;
+        setCachedData(cacheKeyMetadata, spreadsheet);
+      }
+
+      const sheetNames = spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
       
-      let targetSheet = sheetNames.find(name => name && name.trim().toLowerCase() === 'players');
+      let targetSheet = sheetNames.find((name: string) => name && name.trim().toLowerCase() === 'players');
       if (!targetSheet) {
-        targetSheet = sheetNames.find(name => name && name.toLowerCase().includes('player'));
+        targetSheet = sheetNames.find((name: string) => name && name.toLowerCase().includes('player'));
       }
 
       if (!targetSheet) {
         return res.status(500).json({ error: `Could not find a "Players" tab in your Google Sheet.` });
       }
 
-      const playersSheet = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${targetSheet}!A1:Z500`,
-      });
+      const cacheKeyPlayers = `players_${SPREADSHEET_ID}_${targetSheet}`;
+      let playersData = getCachedData(cacheKeyPlayers);
+      if (!playersData) {
+        const playersSheet = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${targetSheet}!A1:Z500`,
+        });
+        playersData = playersSheet.data.values || [];
+        setCachedData(cacheKeyPlayers, playersData);
+      }
 
-      const rows = playersSheet.data.values || [];
+      const rows = playersData;
       console.log(`[AUTH] Checking players list. Found ${rows.length} rows.`);
       const firstRow = rows[0]?.map(c => String(c || '').toLowerCase()) || [];
       const hasHeader = firstRow.some(cell => cell.includes('name') || cell.includes('email') || cell.includes('player'));
@@ -207,19 +249,25 @@ async function startServer() {
 
     try {
       // First, get the spreadsheet metadata to find the correct tab name
-      const spreadsheet = await sheets.spreadsheets.get({
-        spreadsheetId: SPREADSHEET_ID,
-      }).catch(err => {
-        throw new Error(`Failed to access spreadsheet: ${err.message}. Check SPREADSHEET_ID and service account access.`);
-      });
+      const cacheKeyMetadata = `metadata_${SPREADSHEET_ID}`;
+      let spreadsheet = getCachedData(cacheKeyMetadata);
+      if (!spreadsheet) {
+        const response = await sheets.spreadsheets.get({
+          spreadsheetId: SPREADSHEET_ID,
+        }).catch(err => {
+          throw new Error(`Failed to access spreadsheet: ${err.message}. Check SPREADSHEET_ID and service account access.`);
+        });
+        spreadsheet = response.data;
+        setCachedData(cacheKeyMetadata, spreadsheet);
+      }
 
-      const sheetNames = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
+      const sheetNames = spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
       console.log('Available sheets:', sheetNames);
 
       // Look for a tab named "Players" (case-insensitive) or containing "player"
-      let targetSheet = sheetNames.find(name => name?.toLowerCase() === 'players');
+      let targetSheet = sheetNames.find((name: string) => name?.toLowerCase() === 'players');
       if (!targetSheet) {
-        targetSheet = sheetNames.find(name => name?.toLowerCase().includes('player'));
+        targetSheet = sheetNames.find((name: string) => name?.toLowerCase().includes('player'));
       }
 
       if (!targetSheet) {
@@ -227,15 +275,21 @@ async function startServer() {
       }
 
       console.log(`Fetching players from sheet: "${targetSheet}"`);
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${targetSheet}!A1:Z500`, 
-      }).catch(err => {
-        console.error('Sheet API Error:', err.message);
-        throw new Error(`Google Sheets fetch failed for tab "${targetSheet}": ${err.message}`);
-      });
+      const cacheKeyPlayers = `players_${SPREADSHEET_ID}_${targetSheet}`;
+      let playersData = getCachedData(cacheKeyPlayers);
+      if (!playersData) {
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${targetSheet}!A1:Z500`, 
+        }).catch(err => {
+          console.error('Sheet API Error:', err.message);
+          throw new Error(`Google Sheets fetch failed for tab "${targetSheet}": ${err.message}`);
+        });
+        playersData = response.data.values || [];
+        setCachedData(cacheKeyPlayers, playersData);
+      }
       
-      const rows = response.data.values || [];
+      const rows = playersData;
       console.log(`[SHEETS] Found ${rows.length} rows in "${targetSheet}". Raw row 0:`, JSON.stringify(rows[0] || []));
 
       if (rows.length === 0) {
@@ -373,6 +427,10 @@ async function startServer() {
         }
       }
 
+      // Clear history caches
+      clearCache('history');
+      clearCache('settleup');
+
       res.json({ success: true, gameId });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -387,32 +445,44 @@ async function startServer() {
     const sheets = google.sheets({ version: 'v4', auth });
 
     try {
-      const spreadsheet = await sheets.spreadsheets.get({
-        spreadsheetId: SPREADSHEET_ID,
-      });
-      const sheetNames = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
+      const cacheKeyMetadata = `metadata_${SPREADSHEET_ID}`;
+      let spreadsheet = getCachedData(cacheKeyMetadata);
+      if (!spreadsheet) {
+        const response = await sheets.spreadsheets.get({
+          spreadsheetId: SPREADSHEET_ID,
+        });
+        spreadsheet = response.data;
+        setCachedData(cacheKeyMetadata, spreadsheet);
+      }
+      const sheetNames = spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
       
       console.log(`[SHEETS] Available sheets:`, sheetNames);
       
-      let targetSheet = sheetNames.find(name => 
+      let targetSheet = sheetNames.find((name: string) => 
         name && ['games', 'logs', 'history', 'records'].includes(name.toLowerCase())
       );
       
       if (!targetSheet) {
-        targetSheet = sheetNames.find(name => name && (name.toLowerCase().includes('game') || name.toLowerCase().includes('log')));
+        targetSheet = sheetNames.find((name: string) => name && (name.toLowerCase().includes('game') || name.toLowerCase().includes('log')));
       }
 
       if (!targetSheet) {
-        targetSheet = sheetNames.find(name => name && !name.toLowerCase().includes('player')) || sheetNames[0];
+        targetSheet = sheetNames.find((name: string) => name && !name.toLowerCase().includes('player')) || sheetNames[0];
       }
 
       console.log(`[SHEETS] Using "${targetSheet}" for game history`);
 
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${targetSheet}!A1:J500`,
-      });
-      const rows = response.data.values || [];
+      const cacheKeyHistory = `history_${SPREADSHEET_ID}_${targetSheet}`;
+      let historyData = getCachedData(cacheKeyHistory);
+      if (!historyData) {
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${targetSheet}!A1:J500`,
+        });
+        historyData = response.data.values || [];
+        setCachedData(cacheKeyHistory, historyData);
+      }
+      const rows = historyData;
       console.log(`[SHEETS] Fetched ${rows.length} rows from "${targetSheet}"`);
       
       if (rows.length === 0) return res.json([]);
@@ -443,17 +513,29 @@ async function startServer() {
     if (!SPREADSHEET_ID) return res.status(400).json({ error: 'Spreadsheet ID not configured' });
     const sheets = google.sheets({ version: 'v4', auth });
     try {
-      const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-      const sheetNames = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
-      const targetSheet = sheetNames.find(name => name && name.toLowerCase() === 'settleup');
+      const cacheKeyMetadata = `metadata_${SPREADSHEET_ID}`;
+      let spreadsheet = getCachedData(cacheKeyMetadata);
+      if (!spreadsheet) {
+        const response = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+        spreadsheet = response.data;
+        setCachedData(cacheKeyMetadata, spreadsheet);
+      }
+      const sheetNames = spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
+      const targetSheet = sheetNames.find((name: string) => name && name.toLowerCase() === 'settleup');
       
       if (!targetSheet) return res.json([]);
 
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `'${targetSheet}'!A1:F1000`,
-      });
-      const rows = response.data.values || [];
+      const cacheKeySettleup = `settleup_${SPREADSHEET_ID}_${targetSheet}`;
+      let settleupData = getCachedData(cacheKeySettleup);
+      if (!settleupData) {
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `'${targetSheet}'!A1:F1000`,
+        });
+        settleupData = response.data.values || [];
+        setCachedData(cacheKeySettleup, settleupData);
+      }
+      const rows = settleupData;
       if (rows.length === 0) return res.json([]);
 
       const firstRow = rows[0].map(c => String(c || '').toLowerCase());
@@ -503,6 +585,10 @@ async function startServer() {
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: rows },
       });
+      
+      // Clear settleup cache
+      clearCache('settleup');
+      
       res.json({ success: true, transferId });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

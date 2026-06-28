@@ -433,6 +433,7 @@ export default function App() {
       seats.forEach(seat => {
         const names = seat.player.split(' + ').map(n => n.trim());
         const score = parseFloat(seat.score);
+        const share = score / names.length;
         const date = new Date(game.timestamp);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         
@@ -447,24 +448,24 @@ export default function App() {
           }
           const p = stats[name];
           p.games += 1;
-          p.totalScore += score;
+          p.totalScore += share;
           if (score > 0) p.wins += 1;
-          p.highest = Math.max(p.highest, score);
-          p.lowest = Math.min(p.lowest, score);
+          p.highest = Math.max(p.highest, share);
+          p.lowest = Math.min(p.lowest, share);
           
           p.inGamesStats.totalFieldScore += totalFieldScore;
           p.inGamesStats.count += 1;
 
           // Monthly
           if (!p.monthlyScores[monthKey]) p.monthlyScores[monthKey] = { total: 0, count: 0 };
-          p.monthlyScores[monthKey].total += score;
+          p.monthlyScores[monthKey].total += share;
           p.monthlyScores[monthKey].count += 1;
 
           // Partners
           const partners = names.filter(n => n !== name);
           partners.forEach(partner => {
             if (!p.partnerScores[partner]) p.partnerScores[partner] = { total: 0, count: 0 };
-            p.partnerScores[partner].total += score;
+            p.partnerScores[partner].total += share;
             p.partnerScores[partner].count += 1;
           });
         });
@@ -510,7 +511,7 @@ export default function App() {
           <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <ShieldCheck className="w-8 h-8" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Mahjong Audit</h1>
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Gamble 2 MJ Tracker</h1>
           <p className="text-neutral-500 mb-8 leading-relaxed">
             Authorized players only. Please enter your email address to access the game logs and tracking system.
           </p>
@@ -805,9 +806,14 @@ export default function App() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-sm">M</div>
             <span className="font-bold tracking-tighter text-sm uppercase">Mahjong Analytics v2.0</span>
           </div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em]">
-            Developed by Awesome Katie
-          </p>
+          <div className="flex flex-col items-center md:items-end gap-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em]">
+              Developed by Awesome Katie
+            </p>
+            <p className="text-[9px] text-slate-400 tracking-[0.1em] font-mono">
+              Code Base Date: {(import.meta as any).env.VITE_BUILD_DATE || 'June 27, 2026'}
+            </p>
+          </div>
         </div>
       </footer>
     </div>

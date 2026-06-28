@@ -41,9 +41,10 @@ export const ChartTab: React.FC<ChartTabProps> = ({ history }) => {
       
       [game.east, game.south, game.west, game.north].forEach(seat => {
         const score = parseFloat(seat.score);
-        seat.player.split(' + ').forEach(p => {
-          const name = p.trim();
-          running[name] = (running[name] || 0) + score;
+        const seatPlayers = seat.player.split(' + ').map(p => p.trim());
+        const share = score / seatPlayers.length;
+        seatPlayers.forEach(name => {
+          running[name] = (running[name] || 0) + share;
         });
       });
 

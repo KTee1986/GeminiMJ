@@ -97,7 +97,7 @@ export const InsightsTab: React.FC<InsightsTabProps> = ({ history, playerStats, 
 
       if (!userPos) return;
 
-      const userScore = scores[userPos];
+      const userScore = scores[userPos] / seats[userPos].length;
       const partnerSeatMapping: Record<string, 'East' | 'South' | 'West' | 'North'> = {
         East: 'West',
         West: 'East',
@@ -160,7 +160,8 @@ export const InsightsTab: React.FC<InsightsTabProps> = ({ history, playerStats, 
     const timeline = playerHistory.map(h => {
       const seats = [h.east, h.south, h.west, h.north];
       const playerEntry = seats.find(s => s.player.split(' + ').map(n => n.trim()).includes(selectedPlayer));
-      const score = playerEntry ? parseFloat(playerEntry.score) : 0;
+      const seatPlayers = playerEntry ? playerEntry.player.split(' + ').map(n => n.trim()) : [];
+      const score = playerEntry ? (parseFloat(playerEntry.score) / seatPlayers.length) : 0;
       cumulative += score;
       
       if (score > 0) {
@@ -197,7 +198,8 @@ export const InsightsTab: React.FC<InsightsTabProps> = ({ history, playerStats, 
       volatility: timeline.length > 1 ? Math.sqrt(playerHistory.reduce((acc, h) => {
           const seats = [h.east, h.south, h.west, h.north];
           const playerEntry = seats.find(s => s.player.split(' + ').map(n => n.trim()).includes(selectedPlayer));
-          const s = playerEntry ? parseFloat(playerEntry.score) : 0;
+          const seatPlayers = playerEntry ? playerEntry.player.split(' + ').map(n => n.trim()) : [];
+          const s = playerEntry ? (parseFloat(playerEntry.score) / seatPlayers.length) : 0;
           return acc + Math.pow(s - (p.totalScore/p.games), 2);
       }, 0) / timeline.length) : 0
     };

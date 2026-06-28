@@ -9,6 +9,11 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss()],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'import.meta.env.VITE_BUILD_DATE': JSON.stringify(new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })),
     },
     resolve: {
       alias: {
