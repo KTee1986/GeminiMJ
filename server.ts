@@ -320,6 +320,62 @@ async function startServer() {
     }
   });
 
+  // Fetch scores tab data from Google Sheets
+  app.get('/api/scores', ensureAuthenticated, async (req: any, res) => {
+    if (!SPREADSHEET_ID) {
+      return res.status(400).json({ error: 'Spreadsheet ID not configured' });
+    }
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    try {
+      const cacheKeyMetadata = `metadata_${SPREADSHEET_ID}`;
+      let spreadsheet = getCachedData(cacheKeyMetadata);
+      if (!spreadsheet) {
+        const response = await sheets.spreadsheets.get({
+          spreadsheetId: SPREADSHEET_ID,
+        });
+        spreadsheet = response.data;
+        setCachedData(cacheKeyMetadata, spreadsheet);
+      }
+
+      const sheetNames = spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
+      console.log('Available sheets for scores:', sheetNames);
+
+      // Look for a tab named "score", "scores", "tab score", etc.
+      let targetSheet = sheetNames.find((name: string) => 
+        name && ['score', 'scores', 'tab score'].includes(name.trim().toLowerCase())
+      );
+      if (!targetSheet) {
+        targetSheet = sheetNames.find((name: string) => name && name.toLowerCase().includes('score'));
+      }
+
+      if (!targetSheet) {
+        return res.status(404).json({ error: `Could not find a tab containing "score". Available tabs: ${sheetNames.join(', ')}` });
+      }
+
+      console.log(`Fetching scores from sheet: "${targetSheet}"`);
+      const cacheKeyScores = `scores_${SPREADSHEET_ID}_${targetSheet}`;
+      let scoresData = getCachedData(cacheKeyScores);
+      if (!scoresData) {
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `'${targetSheet}'!A1:Z1000`, 
+        }).catch(err => {
+          console.error('Sheet API Error:', err.message);
+          throw new Error(`Google Sheets fetch failed for tab "${targetSheet}": ${err.message}`);
+        });
+        scoresData = response.data.values || [];
+        setCachedData(cacheKeyScores, scoresData);
+      }
+      
+      res.json({ sheetName: targetSheet, rows: scoresData });
+    } catch (error: any) {
+      console.error('Error fetching scores:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post('/api/game/log', ensureAuthenticated, async (req: any, res) => {
     if (!SPREADSHEET_ID) {
       return res.status(400).json({ error: 'Spreadsheet ID not configured' });
@@ -430,6 +486,7 @@ async function startServer() {
       // Clear history caches
       clearCache('history');
       clearCache('settleup');
+      clearCache('scores');
 
       res.json({ success: true, gameId });
     } catch (error: any) {

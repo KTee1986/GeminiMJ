@@ -26,7 +26,8 @@ import {
   Filter,
   Menu,
   X,
-  ChevronLeft
+  ChevronLeft,
+  Table
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { 
@@ -52,8 +53,9 @@ import { InsightsTab } from './components/InsightsTab';
 import { PlayerListTab } from './components/PlayerListTab';
 import { AccountingHistoryTab } from './components/AccountingHistoryTab';
 import { SettleUpTab } from './components/SettleUpTab';
+import { ScoresTab } from './components/ScoresTab';
 
-type Tab = 'record' | 'history' | 'total' | 'chart' | 'stats' | 'insights' | 'players' | 'accounting_history' | 'settleup';
+type Tab = 'record' | 'history' | 'total' | 'chart' | 'stats' | 'insights' | 'players' | 'accounting_history' | 'settleup' | 'scores';
 
 export default function App() {
   const [user, setUser] = useState<{ name: string; email: string; picture: string } | null>(null);
@@ -73,10 +75,10 @@ export default function App() {
   
   // Game State
   const [gameState, setGameState] = useState<Record<Position, PositionState>>({
-    East: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
-    South: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
-    West: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
-    North: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+    East: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+    South: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+    West: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+    North: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +91,7 @@ export default function App() {
     { id: 'chart', label: 'Visual Chart', icon: TrendingUp },
     { id: 'stats', label: 'Player Stats', icon: BarChart3 },
     { id: 'insights', label: 'Deep Insights', icon: Lightbulb },
+    { id: 'scores', label: 'Scores Tab', icon: Table },
     { id: 'settleup', label: 'Settle Up', icon: RotateCcw },
     { id: 'accounting_history', label: 'Account Audit', icon: HistoryIcon },
     { id: 'players', label: 'Player Registry', icon: Users },
@@ -310,10 +313,10 @@ export default function App() {
 
   const resetGame = () => {
     setGameState({
-      East: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
-      South: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
-      West: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
-      North: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'CHIPS', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+      East: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+      South: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+      West: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
+      North: { players: [], chips: { ...DEFAULT_CHIPS }, mode: 'DELTA', manualScore: 200, deltaChips: { ...ZERO_CHIPS } },
     });
   };
 
@@ -626,7 +629,7 @@ export default function App() {
       </header>
 
       {/* Analytics Filter Overlay */}
-      {activeTab !== 'record' && activeTab !== 'players' && activeTab !== 'accounting_history' && activeTab !== 'settleup' && (
+      {activeTab !== 'record' && activeTab !== 'players' && activeTab !== 'accounting_history' && activeTab !== 'settleup' && activeTab !== 'scores' && (
         <div className="bg-neutral-950/50 border-b border-white/5 py-3 px-4 flex items-center gap-4 overflow-x-auto no-scrollbar scroll-smooth">
           <div className="flex items-center gap-2 shrink-0">
             <Filter className="w-3 h-3 text-blue-500" />
@@ -772,6 +775,12 @@ export default function App() {
           {activeTab === 'insights' && (
             <motion.div key="insights" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <InsightsTab history={filteredHistory} playerStats={analyticalStats} currentUser={user.name} />
+            </motion.div>
+          )}
+
+          {activeTab === 'scores' && (
+            <motion.div key="scores" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <ScoresTab />
             </motion.div>
           )}
 
